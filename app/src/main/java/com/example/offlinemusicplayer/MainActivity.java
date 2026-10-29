@@ -21,6 +21,7 @@ public class MainActivity extends Activity {
     private SeekBar progressBar;
     private ArrayAdapter<String> adapter;
     private final ArrayList<File> tracks = new ArrayList<>();
+    private final EmbeddedExtractor embeddedExtractor = new EmbeddedExtractor();
     private MediaPlayer player;
     private File selectedTrack;
     private long lastDownloadId = -1;
@@ -70,10 +71,18 @@ public class MainActivity extends Activity {
         String raw=urlInput.getText().toString().trim(); if(raw.isEmpty()){statusText.setText("Paste a URL first.");return;}
         Uri uri=Uri.parse(raw); String scheme=uri.getScheme(); if(!"http".equalsIgnoreCase(scheme)&&!"https".equalsIgnoreCase(scheme)){statusText.setText("Use an http or https URL.");return;}
         getPreferences(MODE_PRIVATE).edit().putString("service_url",serviceUrlInput.getText().toString().trim()).apply();
-        if (isServiceUrl(raw)) extractThroughService(raw); else enqueueDownload(raw, safeName(uri.getLastPathSegment()));
+        if (isServiceUrl(raw)) extractEmbedded(raw); else enqueueDownload(raw, safeName(uri.getLastPathSegment()));
     }
 
     private boolean isServiceUrl(String raw) { String l=raw.toLowerCase(Locale.US); return l.contains("youtube.com/") || l.contains("youtu.be/") || l.contains("vimeo.com/"); }
+
+    private void extractEmbedded(String mediaUrl) {
+        downloadButton.setEnabled(false); statusText.setText("Converting inside Wfmusic with yt-dlp + FFmpeg…");
+        embeddedExtractor.extract(this, mediaUrl, musicDir(), new EmbeddedExtractor.Callback() {
+            @Override public void success(File mp3) { runOnUiThread(() -> { downloadButton.setEnabled(true); statusText.setText("Saved to your downloaded music."); refreshLibrary(); showLibraryTab(); }); }
+            @Override public void failure(String message) { runOnUiThread(() -> { downloadButton.setEnabled(true); statusText.setText("Embedded conversion failed: "+message); }); }
+        });
+    }
 
     private void extractThroughService(String mediaUrl) {
         String serviceBase=serviceUrlInput.getText().toString().trim(); if(serviceBase.endsWith("/")) serviceBase=serviceBase.substring(0,serviceBase.length()-1);
@@ -124,5 +133,5 @@ public class MainActivity extends Activity {
             player.release(); player=null;
         }
     }
-    @Override protected void onDestroy(){unregisterReceiver(downloadReceiver);executor.shutdownNow();handler.removeCallbacksAndMessages(null);if(player!=null){player.release();player=null;}super.onDestroy();}
+    @Override protected void onDestroy(){unregisterReceiver(downloadReceiver);executor.shutdownNow();embeddedExtractor.shutdown();handler.removeCallbacksAndMessages(null);if(player!=null){player.release();player=null;}super.onDestroy();}
 }
