@@ -1,0 +1,16 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="20dp" android:background="#111318">
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="OFFLINE MUSIC" android:textColor="#A7F36B" android:textStyle="bold" android:textSize="13sp" android:letterSpacing="0.16" />
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Your music, available offline." android:textColor="#F4F5F7" android:textSize="28sp" android:textStyle="bold" android:layout_marginTop="8dp" />
+    <TextView android:id="@+id/statusText" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Download only content you own or have permission to save." android:textColor="#AEB4C0" android:textSize="13sp" android:layout_marginTop="8dp" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="18dp">
+        <EditText android:id="@+id/urlInput" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:hint="Paste a direct audio URL or service URL" android:singleLine="true" android:inputType="textUri" android:textColor="#F4F5F7" android:textColorHint="#687180" android:backgroundTint="#4D5563" />
+        <Button android:id="@+id/downloadButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="DOWNLOAD" android:textColor="#111318" android:backgroundTint="#A7F36B" android:layout_marginStart="8dp" />
+    </LinearLayout>
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="LIBRARY" android:textColor="#F4F5F7" android:textStyle="bold" android:textSize="14sp" android:layout_marginTop="28dp" />
+    <ListView android:id="@+id/libraryList" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:divider="#252A33" android:dividerHeight="1dp" android:paddingTop="8dp" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:paddingTop="12dp">
+        <TextView android:id="@+id/nowPlaying" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Nothing playing" android:textColor="#F4F5F7" android:textSize="15sp" android:ellipsize="end" android:maxLines="1" />
+        <Button android:id="@+id/playPauseButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="PLAY" android:textColor="#111318" android:backgroundTint="#A7F36B" />
+    </LinearLayout>
+    <TextView android:id="@+id/settingsHint" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="For YouTube or other service URLs, configure the optional companion extractor in the README. Direct MP3/M4A/OGG links work without it." android:textColor="#687180" android:textSize="11sp" android:layout_marginTop="8dp" />
+</LinearLayout>
