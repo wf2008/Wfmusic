@@ -116,5 +116,13 @@ public class MainActivity extends Activity {
     private String formatMs(int ms){int s=Math.max(0,ms/1000);return String.format(Locale.US,"%d:%02d",s/60,s%60);}
     private void showDownloadTab(){findViewById(R.id.downloadPanel).setVisibility(View.VISIBLE);findViewById(R.id.libraryPanel).setVisibility(View.GONE);downloadTab.setTextColor(0xFFA7F36B);libraryTab.setTextColor(0xFFAEB4C0);}
     private void showLibraryTab(){findViewById(R.id.downloadPanel).setVisibility(View.GONE);findViewById(R.id.libraryPanel).setVisibility(View.VISIBLE);downloadTab.setTextColor(0xFFAEB4C0);libraryTab.setTextColor(0xFFA7F36B);refreshLibrary();}
+    @Override protected void onStop(){
+        super.onStop();
+        if(player!=null && player.isPlaying() && selectedTrack!=null){
+            Intent intent=new Intent(this,PlaybackService.class).setAction(PlaybackService.ACTION_PLAY).putExtra(PlaybackService.EXTRA_PATH,selectedTrack.getAbsolutePath());
+            if(Build.VERSION.SDK_INT>=26) startForegroundService(intent); else startService(intent);
+            player.release(); player=null;
+        }
+    }
     @Override protected void onDestroy(){unregisterReceiver(downloadReceiver);executor.shutdownNow();handler.removeCallbacksAndMessages(null);if(player!=null){player.release();player=null;}super.onDestroy();}
 }
