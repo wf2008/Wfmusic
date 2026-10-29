@@ -87,7 +87,7 @@ public class MainActivity extends Activity {
                 int code=c.getResponseCode(); InputStream in=code>=200&&code<300?c.getInputStream():c.getErrorStream(); String response=readAll(in);
                 if(code<200||code>=300) throw new IOException("Service returned "+code+": "+response);
                 String downloadUrl=jsonValue(response,"download_url"); String title=jsonValue(response,"title"); if(downloadUrl==null) throw new IOException("Service did not return download_url");
-                if(downloadUrl.startsWith("/")) downloadUrl=base+downloadUrl; final String outputUrl=downloadUrl; final String outputName=safeName(title==null?"youtube-audio.mp3":title+".mp3");
+                final String outputUrl=downloadUrl.startsWith("/")?base+downloadUrl:downloadUrl; final String outputName=safeName(title==null?"youtube-audio.mp3":title+".mp3");
                 runOnUiThread(() -> enqueueDownload(outputUrl, outputName));
             } catch(Exception e) { runOnUiThread(() -> { downloadButton.setEnabled(true); statusText.setText("Conversion failed: "+e.getMessage()); }); }
             finally { if(c!=null)c.disconnect(); }
