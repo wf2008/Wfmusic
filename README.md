@@ -4,13 +4,12 @@ A small Android music library/player with direct audio downloads and an optional
 
 ## Android app
 
-The app downloads direct `http`/`https` audio URLs into app-private external storage and plays downloaded files offline. The GitHub Actions workflow builds a debug APK and uploads it as an artifact.
+The app now has two tabs:
 
-1. Open **Actions → Android APK → Run workflow** (or push to `main`).
-2. Download the `offline-music-player-debug` artifact.
-3. Install the APK on an Android 8+ device.
+- **Download**: direct MP3/M4A/OGG URLs work without a service. YouTube/Vimeo URLs are sent to the extractor service, which converts authorized media to MP3.
+- **Library / Player**: shows every downloaded track and provides play/pause, seek, elapsed/duration display, previous/next, shuffle, repeat, and offline playback.
 
-The current app accepts direct MP3/M4A/OGG URLs. A service URL such as YouTube requires the companion extractor below; the Android UI includes a clear note rather than silently pretending it can run Python binaries locally.
+For an Android emulator, the default extractor URL is `http://10.0.2.2:8000`. For a physical phone, use the computer's LAN IP, for example `http://192.168.1.20:8000`, and keep the phone and computer on the same network. Use HTTPS/authentication before exposing the service outside a trusted network.
 
 ## Optional extractor service
 
@@ -22,8 +21,14 @@ pip install -r requirements.txt
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-The service endpoint accepts `POST /extract` with `{ "url": "https://..." }` and uses `yt-dlp` plus FFmpeg to create an MP3. Put it behind HTTPS and authentication before exposing it publicly, and only process authorized content. The Android app currently supports the direct output URL returned by the service; wiring a hosted endpoint into the app is the next configuration step.
+The service accepts `POST /extract` with `{ "url": "https://..." }`, calls `yt-dlp` with FFmpeg audio extraction, and returns a downloadable MP3 URL. The Android app automatically calls this endpoint when a YouTube or Vimeo URL is pasted.
+
+Only process media you own or have explicit permission to download. Do not use the service to bypass DRM, private content, paywalls, or access controls.
+
+## GitHub Actions
+
+The workflow builds a debug APK on push to `main` or through **Actions → Android APK → Run workflow**. The successful artifact is uploaded as `offline-music-player-debug`.
 
 ## Local validation
 
-The sandbox used to author this project does not include the Android SDK or Gradle executable. The repository is therefore configured for reproducible GitHub Actions builds using Java 17, Android API 35, Build Tools 35.0.0, and Gradle 8.9. The workflow is the authoritative APK build/test path.
+The sandbox used to author this project does not include the Android SDK or Gradle executable. GitHub Actions is the reproducible APK build path. The Python service and XML resources are validated locally before each push.
