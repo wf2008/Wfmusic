@@ -18,6 +18,10 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: gradle
+      - name: Set up Python for embedded yt-dlp
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
       - name: Install Android platform and build tools
