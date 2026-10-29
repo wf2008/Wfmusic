@@ -76,9 +76,9 @@ public class MainActivity extends Activity {
     private boolean isServiceUrl(String raw) { String l=raw.toLowerCase(Locale.US); return l.contains("youtube.com/") || l.contains("youtu.be/") || l.contains("vimeo.com/"); }
 
     private void extractThroughService(String mediaUrl) {
-        String base=serviceUrlInput.getText().toString().trim(); if(base.endsWith("/")) base=base.substring(0,base.length()-1);
-        if(base.isEmpty()){statusText.setText("Enter the extractor service URL first.");return;}
-        downloadButton.setEnabled(false); statusText.setText("Converting with yt-dlp + FFmpeg…"); final String endpoint=base+"/extract";
+        String serviceBase=serviceUrlInput.getText().toString().trim(); if(serviceBase.endsWith("/")) serviceBase=serviceBase.substring(0,serviceBase.length()-1);
+        if(serviceBase.isEmpty()){statusText.setText("Enter the extractor service URL first.");return;}
+        final String base=serviceBase; downloadButton.setEnabled(false); statusText.setText("Converting with yt-dlp + FFmpeg…"); final String endpoint=base+"/extract";
         executor.execute(() -> {
             HttpURLConnection c=null;
             try {
