@@ -11,6 +11,7 @@
             </LinearLayout>
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Save what you’re allowed to keep." android:textColor="#F5F7FA" android:textSize="30sp" android:textStyle="bold" android:lineSpacingExtra="2dp" android:layout_marginTop="26dp" />
             <TextView android:id="@+id/statusText" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Paste a link and preview it before downloading." android:textColor="#9AA4B2" android:textSize="13sp" android:layout_marginTop="8dp" />
+            <EditText android:id="@+id/serviceUrlInput" android:layout_width="1dp" android:layout_height="1dp" android:visibility="gone" />
 
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/bg_card" android:layout_marginTop="22dp">
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="CONNECTION" android:textColor="#B7F36B" android:textStyle="bold" android:textSize="11sp" android:letterSpacing="0.12" />
