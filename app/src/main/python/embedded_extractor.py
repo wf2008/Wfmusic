@@ -30,7 +30,7 @@ def download_bestaudio(url, output_dir, cookies_path=None):
     os.makedirs(output_dir, exist_ok=True)
     options = _options(cookies_path)
     options.update({
-        "format": "bestaudio/best",
+        "format": "bestaudio[acodec^=mp4a]/bestaudio[ext=m4a]/bestaudio/best",
         "outtmpl": os.path.join(output_dir, "%(title)s.%(ext)s"),
         "restrictfilenames": True,
         "overwrites": False,

@@ -15,7 +15,7 @@ The interface uses a dark WF-branded layout with rounded cards, a dedicated prev
 
 During conversion, the source WebM/M4A is kept in the app cache, converted to an MP3 in the library, and deleted after success. Failed or stale temporary files are cleaned up and are not shown as library tracks.
 
-The release APK is optimized for physical arm64 Android phones and uses the audio-only FFmpeg package because Wfmusic converts audio rather than video. x86_64 Android emulators are not included in this smaller build.
+The release APK is optimized for physical arm64 Android phones; x86_64 Android emulator libraries are not included. Full FFmpeg format support is retained because YouTube may provide WebM/Opus or M4A/AAC audio sources.
 
 For an authorized YouTube request, Wfmusic can open YouTube in its own WebView. Sign in or complete verification there, then tap **Use session**. Wfmusic automatically reads only that WebView's own cookies, stores the cookie header in private app storage, and passes it only to the local embedded extractor. **Remove** deletes the session. The Internet switch blocks Wfmusic's own new WebView/download requests when off; it does not disable internet for other Android apps. Never share session data or use it for content you are not authorized to access; this feature does not bypass CAPTCHA, bot verification, DRM, or access controls.
 

@@ -7,6 +7,6 @@ android { namespace 'com.example.offlinemusicplayer'; compileSdk 35
     }
 }
 
-dependencies { implementation 'dev.ffmpegkit-maintained:ffmpeg-kit-audio:8.1.7' }
+dependencies { implementation 'dev.ffmpegkit-maintained:ffmpeg-kit-full:8.1.7' }
 
 chaquopy { defaultConfig { version = '3.11'; pip { install 'yt-dlp' } } }
