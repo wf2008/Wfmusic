@@ -15,7 +15,8 @@ import java.util.concurrent.*;
 
 public class MainActivity extends Activity {
     private EditText urlInput, serviceUrlInput;
-    private Button downloadButton, playPauseButton, previousButton, nextButton, shuffleButton, repeatButton;
+    private Button downloadButton, playPauseButton, previousButton, nextButton, shuffleButton, repeatButton, importCookiesButton, removeCookiesButton;
+    private android.widget.Switch internetToggle;
     private TextView statusText, nowPlaying, elapsedText, durationText, libraryEmpty, downloadTab, libraryTab;
     private ListView libraryList;
     private SeekBar progressBar;
@@ -26,6 +27,7 @@ public class MainActivity extends Activity {
     private File selectedTrack;
     private long lastDownloadId = -1;
     private boolean shuffle = false, repeat = false, userSeeking = false;
+    private String pendingMediaUrl;
     private final Random random = new Random();
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -41,6 +43,8 @@ public class MainActivity extends Activity {
     private void bindViews() {
         urlInput=findViewById(R.id.urlInput); serviceUrlInput=findViewById(R.id.serviceUrlInput); downloadButton=findViewById(R.id.downloadButton);
         playPauseButton=findViewById(R.id.playPauseButton); previousButton=findViewById(R.id.previousButton); nextButton=findViewById(R.id.nextButton);
+        importCookiesButton=findViewById(R.id.importCookiesButton); removeCookiesButton=findViewById(R.id.removeCookiesButton);
+        internetToggle=findViewById(R.id.internetToggle); internetToggle.setChecked(getPreferences(MODE_PRIVATE).getBoolean("internet_enabled",true));
         shuffleButton=findViewById(R.id.shuffleButton); repeatButton=findViewById(R.id.repeatButton); statusText=findViewById(R.id.statusText);
         nowPlaying=findViewById(R.id.nowPlaying); elapsedText=findViewById(R.id.elapsedText); durationText=findViewById(R.id.durationText);
         libraryEmpty=findViewById(R.id.libraryEmpty); progressBar=findViewById(R.id.progressBar); libraryList=findViewById(R.id.libraryList);
@@ -53,6 +57,9 @@ public class MainActivity extends Activity {
 
     private void bindActions() {
         downloadButton.setOnClickListener(v -> beginDownload());
+        importCookiesButton.setOnClickListener(v -> openYouTubeSession(null));
+        removeCookiesButton.setOnClickListener(v -> removeCookiesFile());
+        internetToggle.setOnCheckedChangeListener((button, checked) -> getPreferences(MODE_PRIVATE).edit().putBoolean("internet_enabled",checked).apply());
         downloadTab.setOnClickListener(v -> showDownloadTab()); libraryTab.setOnClickListener(v -> showLibraryTab());
         libraryList.setOnItemClickListener((p,v,position,id) -> selectTrack(tracks.get(position)));
         playPauseButton.setOnClickListener(v -> togglePlayback()); previousButton.setOnClickListener(v -> playRelative(-1)); nextButton.setOnClickListener(v -> playRelative(1));
@@ -69,6 +76,7 @@ public class MainActivity extends Activity {
 
     private void beginDownload() {
         String raw=urlInput.getText().toString().trim(); if(raw.isEmpty()){statusText.setText("Paste a URL first.");return;}
+        if(!internetToggle.isChecked()){statusText.setText("Internet access is OFF. Turn it on to download or open YouTube.");return;}
         Uri uri=Uri.parse(raw); String scheme=uri.getScheme(); if(!"http".equalsIgnoreCase(scheme)&&!"https".equalsIgnoreCase(scheme)){statusText.setText("Use an http or https URL.");return;}
         getPreferences(MODE_PRIVATE).edit().putString("service_url",serviceUrlInput.getText().toString().trim()).apply();
         if (isServiceUrl(raw)) extractEmbedded(raw); else enqueueDownload(raw, safeName(uri.getLastPathSegment()));
@@ -77,11 +85,21 @@ public class MainActivity extends Activity {
     private boolean isServiceUrl(String raw) { String l=raw.toLowerCase(Locale.US); return l.contains("youtube.com/") || l.contains("youtu.be/") || l.contains("vimeo.com/"); }
 
     private void extractEmbedded(String mediaUrl) {
+        if(cookiesFile()==null){ pendingMediaUrl=mediaUrl; openYouTubeSession(mediaUrl); return; }
         downloadButton.setEnabled(false); statusText.setText("Converting inside Wfmusic with yt-dlp + FFmpeg…");
-        embeddedExtractor.extract(this, mediaUrl, musicDir(), new EmbeddedExtractor.Callback() {
+        embeddedExtractor.extract(this, mediaUrl, musicDir(), cookiesFile(), new EmbeddedExtractor.Callback() {
             @Override public void success(File mp3) { runOnUiThread(() -> { downloadButton.setEnabled(true); statusText.setText("Saved to your downloaded music."); refreshLibrary(); showLibraryTab(); }); }
             @Override public void failure(String message) { runOnUiThread(() -> { downloadButton.setEnabled(true); statusText.setText("Embedded conversion failed: "+message); }); }
         });
+    }
+
+    private File cookiesFile() { File f=new File(getFilesDir(),"youtube-cookies.txt"); return f.isFile()?f:null; }
+    private void openYouTubeSession(String url){ if(!internetToggle.isChecked()){statusText.setText("Internet access is OFF.");return;} Intent i=new Intent(this,YouTubeWebViewActivity.class); i.putExtra("url",url); startActivityForResult(i,702); }
+    private void removeCookiesFile() { File f=new File(getFilesDir(),"youtube-cookies.txt"); if(f.exists()) f.delete(); statusText.setText("YouTube WebView session removed from Wfmusic."); }
+    @Override protected void onActivityResult(int requestCode,int resultCode,Intent data){
+        super.onActivityResult(requestCode,resultCode,data); if(requestCode!=702)return;
+        if(resultCode==RESULT_OK && pendingMediaUrl!=null){ String url=pendingMediaUrl; pendingMediaUrl=null; extractEmbedded(url); }
+        else if(resultCode!=RESULT_OK) statusText.setText("YouTube session not saved. Complete verification in the WebView first.");
     }
 
     private void extractThroughService(String mediaUrl) {

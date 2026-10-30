@@ -1,0 +1,7 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="#111318">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:padding="12dp" android:background="#1B1F27">
+        <TextView android:id="@+id/webStatus" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="YouTube session: loading" android:textColor="#F4F5F7" android:textSize="13sp" />
+        <Button android:id="@+id/useSessionButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="USE SESSION" android:textSize="10sp" />
+    </LinearLayout>
+    <WebView android:id="@+id/youtubeWebView" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+</LinearLayout>

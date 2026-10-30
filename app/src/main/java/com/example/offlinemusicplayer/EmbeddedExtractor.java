@@ -14,12 +14,15 @@ public final class EmbeddedExtractor {
     public interface Callback { void success(File mp3); void failure(String message); }
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
-    public void extract(Context context, String url, File outputDir, Callback callback) {
+    public void extract(Context context, String url, File outputDir, File cookiesFile, Callback callback) {
         executor.execute(() -> {
             try {
                 if (!Python.isStarted()) Python.start(new AndroidPlatform(context.getApplicationContext()));
                 PyObject module = Python.getInstance().getModule("embedded_extractor");
-                String sourcePath = module.callAttr("download_bestaudio", url, outputDir.getAbsolutePath()).toString();
+                PyObject result = cookiesFile != null && cookiesFile.isFile()
+                        ? module.callAttr("download_bestaudio", url, outputDir.getAbsolutePath(), cookiesFile.getAbsolutePath())
+                        : module.callAttr("download_bestaudio", url, outputDir.getAbsolutePath());
+                String sourcePath = result.toString();
                 File source = new File(sourcePath);
                 String base = source.getName();
                 int dot = base.lastIndexOf('.');

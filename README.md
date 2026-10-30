@@ -11,6 +11,8 @@ The app now has two tabs:
 
 Downloads use Android `DownloadManager`, so they continue while the app is backgrounded. Active playback hands off to a foreground media service with a persistent notification, so audio can continue when the app is backgrounded or the screen is locked.
 
+For an authorized YouTube request, Wfmusic can open YouTube in its own WebView. Sign in or complete verification there, then tap **Use session**. Wfmusic automatically reads only that WebView's own cookies, stores the cookie header in private app storage, and passes it only to the local embedded extractor. **Remove** deletes the session. The Internet switch blocks Wfmusic's own new WebView/download requests when off; it does not disable internet for other Android apps. Never share session data or use it for content you are not authorized to access; this feature does not bypass CAPTCHA, bot verification, DRM, or access controls.
+
 The previous computer-hosted service remains in `service/` as an optional fallback for development, but the normal APK flow no longer requires `python`, `pip`, or `uvicorn` on another device.
 
 ## Optional extractor service
