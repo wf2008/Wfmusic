@@ -17,7 +17,8 @@ public class MainActivity extends Activity {
     private EditText urlInput, serviceUrlInput;
     private Button downloadButton, playPauseButton, previousButton, nextButton, shuffleButton, repeatButton, importCookiesButton, removeCookiesButton;
     private android.widget.Switch internetToggle;
-    private TextView statusText, nowPlaying, elapsedText, durationText, libraryEmpty, downloadTab, libraryTab;
+    private TextView statusText, previewText, nowPlaying, elapsedText, durationText, libraryEmpty, downloadTab, libraryTab;
+    private Button confirmDownloadButton;
     private ListView libraryList;
     private SeekBar progressBar;
     private ArrayAdapter<String> adapter;
@@ -46,6 +47,7 @@ public class MainActivity extends Activity {
         importCookiesButton=findViewById(R.id.importCookiesButton); removeCookiesButton=findViewById(R.id.removeCookiesButton);
         internetToggle=findViewById(R.id.internetToggle); internetToggle.setChecked(getPreferences(MODE_PRIVATE).getBoolean("internet_enabled",true));
         shuffleButton=findViewById(R.id.shuffleButton); repeatButton=findViewById(R.id.repeatButton); statusText=findViewById(R.id.statusText);
+        previewText=findViewById(R.id.previewText); confirmDownloadButton=findViewById(R.id.confirmDownloadButton);
         nowPlaying=findViewById(R.id.nowPlaying); elapsedText=findViewById(R.id.elapsedText); durationText=findViewById(R.id.durationText);
         libraryEmpty=findViewById(R.id.libraryEmpty); progressBar=findViewById(R.id.progressBar); libraryList=findViewById(R.id.libraryList);
         downloadTab=findViewById(R.id.downloadTab); libraryTab=findViewById(R.id.libraryTab);
@@ -57,6 +59,7 @@ public class MainActivity extends Activity {
 
     private void bindActions() {
         downloadButton.setOnClickListener(v -> beginDownload());
+        confirmDownloadButton.setOnClickListener(v -> { if(pendingMediaUrl!=null){ String url=pendingMediaUrl; confirmDownloadButton.setVisibility(View.GONE); extractEmbedded(url); } });
         importCookiesButton.setOnClickListener(v -> openYouTubeSession(null));
         removeCookiesButton.setOnClickListener(v -> removeCookiesFile());
         internetToggle.setOnCheckedChangeListener((button, checked) -> getPreferences(MODE_PRIVATE).edit().putBoolean("internet_enabled",checked).apply());
@@ -79,10 +82,20 @@ public class MainActivity extends Activity {
         if(!internetToggle.isChecked()){statusText.setText("Internet access is OFF. Turn it on to download or open YouTube.");return;}
         Uri uri=Uri.parse(raw); String scheme=uri.getScheme(); if(!"http".equalsIgnoreCase(scheme)&&!"https".equalsIgnoreCase(scheme)){statusText.setText("Use an http or https URL.");return;}
         getPreferences(MODE_PRIVATE).edit().putString("service_url",serviceUrlInput.getText().toString().trim()).apply();
-        if (isServiceUrl(raw)) extractEmbedded(raw); else enqueueDownload(raw, safeName(uri.getLastPathSegment()));
+        if (isServiceUrl(raw)) { pendingMediaUrl=raw; previewMedia(raw); } else enqueueDownload(raw, safeName(uri.getLastPathSegment()));
     }
 
     private boolean isServiceUrl(String raw) { String l=raw.toLowerCase(Locale.US); return l.contains("youtube.com/") || l.contains("youtu.be/") || l.contains("vimeo.com/"); }
+
+    private void previewMedia(String mediaUrl) {
+        if(cookiesFile()==null){ pendingMediaUrl=mediaUrl; statusText.setText("Open YouTube to sign in or complete verification, then return to preview."); openYouTubeSession(mediaUrl); return; }
+        previewText.setText("Loading video details…"); confirmDownloadButton.setVisibility(View.GONE); downloadButton.setEnabled(false);
+        embeddedExtractor.preview(this, mediaUrl, cookiesFile(), new EmbeddedExtractor.PreviewCallback() {
+            @Override public void success(String json){ runOnUiThread(() -> { try { org.json.JSONObject o=new org.json.JSONObject(json); String title=o.optString("title","Untitled"); String uploader=o.optString("uploader","Unknown channel"); int seconds=o.optInt("duration",0); previewText.setText(title+"\n"+uploader+"  •  "+formatMs(seconds*1000)); statusText.setText("Preview loaded. Confirm when you are ready to download."); confirmDownloadButton.setVisibility(View.VISIBLE); } catch(Exception e){ failureOnUi("Could not read preview details"); } downloadButton.setEnabled(true); }); }
+            @Override public void failure(String message){ failureOnUi("Preview failed: "+message); }
+            private void failureOnUi(String message){ runOnUiThread(() -> { downloadButton.setEnabled(true); previewText.setText(message); statusText.setText("No download started."); }); }
+        });
+    }
 
     private void extractEmbedded(String mediaUrl) {
         if(cookiesFile()==null){ pendingMediaUrl=mediaUrl; openYouTubeSession(mediaUrl); return; }
@@ -98,7 +111,7 @@ public class MainActivity extends Activity {
     private void removeCookiesFile() { File f=new File(getFilesDir(),"youtube-cookies.txt"); if(f.exists()) f.delete(); statusText.setText("YouTube WebView session removed from Wfmusic."); }
     @Override protected void onActivityResult(int requestCode,int resultCode,Intent data){
         super.onActivityResult(requestCode,resultCode,data); if(requestCode!=702)return;
-        if(resultCode==RESULT_OK && pendingMediaUrl!=null){ String url=pendingMediaUrl; pendingMediaUrl=null; extractEmbedded(url); }
+        if(resultCode==RESULT_OK && pendingMediaUrl!=null){ String url=pendingMediaUrl; previewMedia(url); }
         else if(resultCode!=RESULT_OK) statusText.setText("YouTube session not saved. Complete verification in the WebView first.");
     }
 
@@ -147,7 +160,7 @@ public class MainActivity extends Activity {
         super.onStop();
         if(player!=null && player.isPlaying() && selectedTrack!=null){
             Intent intent=new Intent(this,PlaybackService.class).setAction(PlaybackService.ACTION_PLAY).putExtra(PlaybackService.EXTRA_PATH,selectedTrack.getAbsolutePath());
-            if(Build.VERSION.SDK_INT>=26) startForegroundService(intent); else startService(intent);
+            try { if(Build.VERSION.SDK_INT>=26) startForegroundService(intent); else startService(intent); } catch(RuntimeException e) { statusText.setText("Background playback could not start: "+e.getMessage()); }
             player.release(); player=null;
         }
     }

@@ -6,10 +6,12 @@ A small Android music library/player with direct audio downloads and an embedded
 
 The app now has two tabs:
 
-- **Download**: direct MP3/M4A/OGG URLs work without a service. YouTube/Vimeo URLs are processed inside the APK using embedded Python/yt-dlp and native FFmpeg.
+- **Download**: direct MP3/M4A/OGG URLs work without a service. YouTube/Vimeo URLs are processed inside the APK using embedded Python/yt-dlp and native FFmpeg. For video links, Wfmusic fetches metadata first, shows the title, channel, and duration, and waits for explicit confirmation before conversion.
 - **Library / Player**: shows every downloaded track and provides play/pause, seek, elapsed/duration display, previous/next, shuffle, repeat, and offline playback.
 
 Downloads use Android `DownloadManager`, so they continue while the app is backgrounded. Active playback hands off to a foreground media service with a persistent notification, so audio can continue when the app is backgrounded or the screen is locked.
+
+The interface uses a dark WF-branded layout with rounded cards, a dedicated preview panel, clearer connection controls, and a redesigned library/player surface instead of the original default form styling.
 
 For an authorized YouTube request, Wfmusic can open YouTube in its own WebView. Sign in or complete verification there, then tap **Use session**. Wfmusic automatically reads only that WebView's own cookies, stores the cookie header in private app storage, and passes it only to the local embedded extractor. **Remove** deletes the session. The Internet switch blocks Wfmusic's own new WebView/download requests when off; it does not disable internet for other Android apps. Never share session data or use it for content you are not authorized to access; this feature does not bypass CAPTCHA, bot verification, DRM, or access controls.
 
