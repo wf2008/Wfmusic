@@ -27,21 +27,24 @@ jobs:
         uses: gradle/gradle-build-action@v3
         with:
           gradle-version: '8.9'
-          arguments: assembleDebug assembleDebugAndroidTest --stacktrace
+          arguments: -PemulatorTest=true assembleDebug assembleDebugAndroidTest --stacktrace
       - name: Run on Android emulator
         id: emulator
         continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
-          target: google_apis
+          api-level: 30
+          target: default
           arch: x86_64
-          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot -no-accel
           disable-animations: true
+          emulator-boot-timeout: 1200
+          cores: 4
+          ram-size: 2048M
           script: |
             adb logcat -c
             set +e
-            gradle connectedDebugAndroidTest --stacktrace
+            gradle -PemulatorTest=true connectedDebugAndroidTest --stacktrace
             rc=$?
             adb logcat -d > emulator-logcat.txt
             echo "---- WFMUSIC LOGCAT ----"
