@@ -1,0 +1,62 @@
+name: Android emulator conversion test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  emulator-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Set up Python for embedded yt-dlp
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+      - name: Install Android platform and build tools
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Build app and instrumentation APK
+        uses: gradle/gradle-build-action@v3
+        with:
+          gradle-version: '8.9'
+          arguments: assembleDebug assembleDebugAndroidTest --stacktrace
+      - name: Run on Android emulator
+        id: emulator
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: Pixel_2
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          disable-animations: true
+          script: |
+            adb logcat -c
+            set +e
+            gradle connectedDebugAndroidTest --stacktrace
+            rc=$?
+            adb logcat -d > emulator-logcat.txt
+            echo "---- WFMUSIC LOGCAT ----"
+            cat emulator-logcat.txt
+            exit $rc
+      - name: Upload emulator logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wfmusic-emulator-logs
+          path: |
+            emulator-logcat.txt
+            app/build/outputs/androidTest-results/**
+            app/build/reports/androidTests/**
+      - name: Fail if emulator test failed
+        if: steps.emulator.outcome == 'failure'
+        run: exit 1
