@@ -24,7 +24,7 @@ public class EmbeddedExtractorInstrumentationTest {
         EmbeddedExtractor extractor=new EmbeddedExtractor();
         try {
             extractor.extract(context,
-                    "https://archive.org/download/ElephantsDream/ed_1024_512kb.mp4",
+                    "https://github.com/mediaelement/mediaelement-files/blob/master/big_buck_bunny.mp4?raw=true",
                     output, null,
                     new EmbeddedExtractor.Callback(){
                         @Override public void success(File mp3){ result.set(mp3); done.countDown(); }
