@@ -35,10 +35,17 @@ public class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState); setContentView(R.layout.activity_main);
+        requestPlaybackNotificationPermission();
         bindViews(); bindActions();
         IntentFilter filter = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(downloadReceiver, filter, Context.RECEIVER_NOT_EXPORTED); else registerReceiver(downloadReceiver, filter);
         refreshLibrary(); showDownloadTab();
+    }
+
+    private void requestPlaybackNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 703);
+        }
     }
 
     private void bindViews() {
@@ -159,7 +166,12 @@ public class MainActivity extends Activity {
     @Override protected void onStop(){
         super.onStop();
         if(player!=null && player.isPlaying() && selectedTrack!=null){
-            Intent intent=new Intent(this,PlaybackService.class).setAction(PlaybackService.ACTION_PLAY).putExtra(PlaybackService.EXTRA_PATH,selectedTrack.getAbsolutePath());
+            String[] queuePaths=new String[tracks.size()];
+            for(int i=0;i<tracks.size();i++) queuePaths[i]=tracks.get(i).getAbsolutePath();
+            Intent intent=new Intent(this,PlaybackService.class).setAction(PlaybackService.ACTION_PLAY)
+                .putExtra(PlaybackService.EXTRA_PATH,selectedTrack.getAbsolutePath())
+                .putExtra(PlaybackService.EXTRA_QUEUE,queuePaths)
+                .putExtra(PlaybackService.EXTRA_INDEX,Math.max(0,tracks.indexOf(selectedTrack)));
             try { if(Build.VERSION.SDK_INT>=26) startForegroundService(intent); else startService(intent); } catch(RuntimeException e) { statusText.setText("Background playback could not start: "+e.getMessage()); }
             player.release(); player=null;
         }
