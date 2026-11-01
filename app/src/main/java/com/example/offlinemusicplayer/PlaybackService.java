@@ -161,9 +161,11 @@ public class PlaybackService extends Service {
             .setOngoing(true)
             .setShowWhen(false)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
+            .setDeleteIntent(serviceIntent(ACTION_STOP,5))
             .addAction(new Notification.Action.Builder(Icon.createWithResource(this,R.drawable.ic_wf_logo),"Previous",serviceIntent(ACTION_PREVIOUS,3)).build())
             .addAction(new Notification.Action.Builder(Icon.createWithResource(this,R.drawable.ic_wf_logo),playing?"Pause":"Play",serviceIntent(playing?ACTION_PAUSE:ACTION_PLAY,2)).build())
-            .addAction(new Notification.Action.Builder(Icon.createWithResource(this,R.drawable.ic_wf_logo),"Next",serviceIntent(ACTION_NEXT,4)).build());
+            .addAction(new Notification.Action.Builder(Icon.createWithResource(this,R.drawable.ic_wf_logo),"Next",serviceIntent(ACTION_NEXT,4)).build())
+            .addAction(new Notification.Action.Builder(Icon.createWithResource(this,R.drawable.ic_wf_logo),"Stop",serviceIntent(ACTION_STOP,5)).build());
         if(mediaSession!=null){
             builder.setStyle(new Notification.MediaStyle().setMediaSession(mediaSession.getSessionToken()).setShowActionsInCompactView(0,1,2));
         }
