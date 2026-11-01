@@ -16,16 +16,17 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public class MainActivity extends Activity {
-    private EditText urlInput, serviceUrlInput;
+    private EditText urlInput, serviceUrlInput, librarySearch;
     private Button downloadButton, playPauseButton, previousButton, nextButton, shuffleButton, repeatButton, importCookiesButton, removeCookiesButton;
     private android.widget.Switch internetToggle;
-    private TextView statusText, previewText, nowPlaying, nowPlayingArtist, elapsedText, durationText, libraryEmpty, downloadTab, libraryTab;
+    private TextView statusText, previewText, nowPlaying, nowPlayingArtist, elapsedText, durationText, libraryEmpty, libraryCount, downloadTab, libraryTab;
     private Button confirmDownloadButton;
     private ListView libraryList;
     private SeekBar progressBar;
     private ProgressBar busyProgress;
     private ArrayAdapter<File> adapter;
     private final ArrayList<File> tracks = new ArrayList<>();
+    private final ArrayList<File> visibleTracks = new ArrayList<>();
     private final EmbeddedExtractor embeddedExtractor = new EmbeddedExtractor();
     private MediaPlayer player;
     private File selectedTrack;
@@ -60,7 +61,7 @@ public class MainActivity extends Activity {
         shuffleButton=findViewById(R.id.shuffleButton); repeatButton=findViewById(R.id.repeatButton); statusText=findViewById(R.id.statusText);
         previewText=findViewById(R.id.previewText); confirmDownloadButton=findViewById(R.id.confirmDownloadButton);
         nowPlaying=findViewById(R.id.nowPlaying); nowPlayingArtist=findViewById(R.id.nowPlayingArtist); elapsedText=findViewById(R.id.elapsedText); durationText=findViewById(R.id.durationText);
-        libraryEmpty=findViewById(R.id.libraryEmpty); progressBar=findViewById(R.id.progressBar); busyProgress=findViewById(R.id.busyProgress); libraryList=findViewById(R.id.libraryList);
+        libraryEmpty=findViewById(R.id.libraryEmpty); librarySearch=findViewById(R.id.librarySearch); libraryCount=findViewById(R.id.libraryCount); progressBar=findViewById(R.id.progressBar); busyProgress=findViewById(R.id.busyProgress); libraryList=findViewById(R.id.libraryList);
         downloadTab=findViewById(R.id.downloadTab); libraryTab=findViewById(R.id.libraryTab);
         serviceUrlInput.setText(getPreferences(MODE_PRIVATE).getString("service_url", "http://10.0.2.2:8000"));
         adapter = new ArrayAdapter<File>(this, R.layout.row_track, new ArrayList<File>()) {
@@ -81,7 +82,8 @@ public class MainActivity extends Activity {
         removeCookiesButton.setOnClickListener(v -> removeCookiesFile());
         internetToggle.setOnCheckedChangeListener((button, checked) -> getPreferences(MODE_PRIVATE).edit().putBoolean("internet_enabled",checked).apply());
         downloadTab.setOnClickListener(v -> showDownloadTab()); libraryTab.setOnClickListener(v -> showLibraryTab());
-        libraryList.setOnItemClickListener((p,v,position,id) -> selectTrack(tracks.get(position)));
+        libraryList.setOnItemClickListener((p,v,position,id) -> selectTrack(visibleTracks.get(position)));
+        librarySearch.addTextChangedListener(new android.text.TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){} public void onTextChanged(CharSequence s,int st,int b,int c){filterLibrary(s.toString());} public void afterTextChanged(android.text.Editable e){}});
         playPauseButton.setOnClickListener(v -> togglePlayback()); previousButton.setOnClickListener(v -> playRelative(-1)); nextButton.setOnClickListener(v -> playRelative(1));
         shuffleButton.setOnClickListener(v -> { shuffle=!shuffle; shuffleButton.setText(shuffle?"SHUFFLE ON":"SHUFFLE"); });
         repeatButton.setOnClickListener(v -> { repeat=!repeat; repeatButton.setText(repeat?"REPEAT ON":"REPEAT OFF"); });
@@ -182,7 +184,8 @@ public class MainActivity extends Activity {
     private void setBusy(boolean busy){if(busyProgress!=null)busyProgress.setVisibility(busy?View.VISIBLE:View.GONE);}
     private final BroadcastReceiver downloadReceiver=new BroadcastReceiver(){@Override public void onReceive(Context context,Intent intent){long id=intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID,-1);if(id!=lastDownloadId)return;DownloadManager.Query q=new DownloadManager.Query().setFilterById(id);Cursor c=((DownloadManager)getSystemService(DOWNLOAD_SERVICE)).query(q);boolean ok=c!=null&&c.moveToFirst()&&c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))==DownloadManager.STATUS_SUCCESSFUL;if(c!=null)c.close();setBusy(false);downloadButton.setEnabled(true);statusText.setText(ok?"Saved to your downloaded music.":"Download failed. Check the service and URL.");refreshLibrary();showLibraryTab();}};
 
-    private void refreshLibrary(){tracks.clear();File[] fs=musicDir().listFiles();if(fs!=null){Arrays.sort(fs,Comparator.comparing(File::getName,String.CASE_INSENSITIVE_ORDER));for(File f:fs)if(f.isFile()){String n=f.getName().toLowerCase(Locale.US);if(n.endsWith(".webm")||n.endsWith(".part")||n.endsWith(".ytdl")){f.delete();continue;}if(n.endsWith(".mp3")||n.endsWith(".m4a")||n.endsWith(".ogg")||n.endsWith(".wav")||n.endsWith(".aac")||n.endsWith(".flac")||n.endsWith(".opus"))tracks.add(f);}}adapter.clear();adapter.addAll(tracks);adapter.notifyDataSetChanged();libraryEmpty.setVisibility(tracks.isEmpty()?View.VISIBLE:View.GONE);}
+    private void refreshLibrary(){tracks.clear();File[] fs=musicDir().listFiles();if(fs!=null){Arrays.sort(fs,Comparator.comparing(File::getName,String.CASE_INSENSITIVE_ORDER));for(File f:fs)if(f.isFile()){String n=f.getName().toLowerCase(Locale.US);if(n.endsWith(".webm")||n.endsWith(".part")||n.endsWith(".ytdl")){f.delete();continue;}if(n.endsWith(".mp3")||n.endsWith(".m4a")||n.endsWith(".ogg")||n.endsWith(".wav")||n.endsWith(".aac")||n.endsWith(".flac")||n.endsWith(".opus"))tracks.add(f);}}libraryCount.setText(tracks.size()+" TRACK"+(tracks.size()==1?"":"S"));filterLibrary(librarySearch==null?"":librarySearch.getText().toString());}
+    private void filterLibrary(String query){visibleTracks.clear();String q=query==null?"":query.trim().toLowerCase(Locale.US);for(File f:tracks){String[] meta=readMetadata(f);String hay=(meta[0]+" "+meta[1]+" "+f.getName()).toLowerCase(Locale.US);if(q.isEmpty()||hay.contains(q))visibleTracks.add(f);}adapter.clear();adapter.addAll(visibleTracks);adapter.notifyDataSetChanged();libraryEmpty.setVisibility(visibleTracks.isEmpty()?View.VISIBLE:View.GONE);}
     private void selectTrack(File f){selectedTrack=f;String[] meta=readMetadata(f);nowPlaying.setText(meta[0]);nowPlayingArtist.setText(meta[1]);resumePositionMs=0;playPauseButton.setText("PLAY");if(player!=null){player.release();player=null;}progressBar.setProgress(0);elapsedText.setText("0:00");durationText.setText(meta[2].equals("0:00")?"0:00":meta[2]);}
     private String[] readMetadata(File f){String title=fallbackTitle(f),artist="Unknown artist",duration="0:00";if(f!=null&&f.isFile())try{MediaMetadataRetriever r=new MediaMetadataRetriever();r.setDataSource(f.getAbsolutePath());String t=r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE);String a=r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST);String d=r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);if(t!=null&&!t.trim().isEmpty())title=t;if(a!=null&&!a.trim().isEmpty())artist=a;if(d!=null)duration=formatMs(Integer.parseInt(d));r.release();}catch(Exception ignored){}return new String[]{title,artist,duration};}
     private String fallbackTitle(File f){if(f==null)return "Untitled";String n=f.getName();int dot=n.lastIndexOf('.');if(dot>0)n=n.substring(0,dot);return n.replace('_',' ');}
