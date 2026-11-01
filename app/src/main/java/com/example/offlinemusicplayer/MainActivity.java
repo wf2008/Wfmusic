@@ -6,6 +6,7 @@ import android.database.Cursor;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.*;
+import android.content.pm.PackageManager;
 import android.view.View;
 import android.widget.*;
 import java.io.*;
