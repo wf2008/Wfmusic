@@ -17,10 +17,13 @@ public class PlaybackService extends Service {
     public static final String ACTION_PAUSE="com.example.offlinemusicplayer.PAUSE";
     public static final String ACTION_NEXT="com.example.offlinemusicplayer.NEXT";
     public static final String ACTION_PREVIOUS="com.example.offlinemusicplayer.PREVIOUS";
+    public static final String ACTION_HANDOFF_TO_APP="com.example.offlinemusicplayer.HANDOFF_TO_APP";
     public static final String ACTION_STOP="com.example.offlinemusicplayer.STOP";
     public static final String EXTRA_PATH="path";
     public static final String EXTRA_QUEUE="queue";
     public static final String EXTRA_INDEX="index";
+    public static final String EXTRA_POSITION="position";
+    public static final String EXTRA_SHOULD_PLAY="should_play";
     private static final int NOTIFICATION_ID=42;
     private static final String CHANNEL_ID="wfmusic_playback";
 
@@ -29,6 +32,8 @@ public class PlaybackService extends Service {
     private String currentPath;
     private final ArrayList<String> queue=new ArrayList<>();
     private int queueIndex=0;
+    private int pendingPositionMs=0;
+    private boolean pendingShouldPlay=true;
 
     @Override public void onCreate(){
         super.onCreate();
@@ -52,8 +57,12 @@ public class PlaybackService extends Service {
                 queueIndex=Math.max(0,Math.min(intent.getIntExtra(EXTRA_INDEX,0),queue.size()-1));
             }
             String action=intent.getAction();
-            if(ACTION_PLAY.equals(action)){
+            if(ACTION_HANDOFF_TO_APP.equals(action)){
+                releaseForApp();
+            } else if(ACTION_PLAY.equals(action)){
                 String path=intent.getStringExtra(EXTRA_PATH);
+                pendingPositionMs=Math.max(0,intent.getIntExtra(EXTRA_POSITION,0));
+                pendingShouldPlay=intent.getBooleanExtra(EXTRA_SHOULD_PLAY,true);
                 if(path!=null){ ensureQueueContains(path); play(path); }
                 else resumePlayback();
             } else if(ACTION_PAUSE.equals(action)) pausePlayback();
@@ -73,14 +82,18 @@ public class PlaybackService extends Service {
     private void play(String path){
         try{
             if(player!=null && path.equals(currentPath)){
-                resumePlayback(); return;
+                if(pendingPositionMs>0)player.seekTo(Math.min(pendingPositionMs,Math.max(0,player.getDuration()-500)));
+                if(pendingShouldPlay)resumePlayback();else pausePlayback();
+                pendingPositionMs=0; pendingShouldPlay=true; return;
             }
             releasePlayer(); currentPath=path;
             updateMetadata();
             player=new MediaPlayer(); player.setDataSource(path);
             player.setOnPreparedListener(mp->{
-                updatePlaybackState(PlaybackState.STATE_PLAYING);
-                mp.start(); updateNotification();
+                if(pendingPositionMs>0)mp.seekTo(Math.min(pendingPositionMs,Math.max(0,mp.getDuration()-500)));
+                if(pendingShouldPlay){ updatePlaybackState(PlaybackState.STATE_PLAYING); mp.start(); }
+                else updatePlaybackState(PlaybackState.STATE_PAUSED);
+                pendingPositionMs=0; pendingShouldPlay=true; updateNotification();
             });
             player.setOnCompletionListener(mp->playRelative(1));
             startForeground(NOTIFICATION_ID,notification());
@@ -107,8 +120,15 @@ public class PlaybackService extends Service {
     }
 
     private void stopPlayback(){
-        releasePlayer(); currentPath=null;
+        releasePlayer(); currentPath=null; clearSavedState();
         if(mediaSession!=null){ updatePlaybackState(PlaybackState.STATE_NONE); mediaSession.setActive(false); }
+        stopForeground(STOP_FOREGROUND_REMOVE); stopSelf();
+    }
+
+    private void releaseForApp(){
+        persistState(); releasePlayer();
+        if(mediaSession!=null){mediaSession.setActive(false);}
+        getSharedPreferences("wfmusic_playback",MODE_PRIVATE).edit().putBoolean("active",false).apply();
         stopForeground(STOP_FOREGROUND_REMOVE); stopSelf();
     }
 
@@ -151,8 +171,18 @@ public class PlaybackService extends Service {
     }
 
     private void updateNotification(){
+        persistState();
         if(Build.VERSION.SDK_INT>=26) getSystemService(NotificationManager.class).notify(NOTIFICATION_ID,notification());
     }
+
+    private void persistState(){
+        if(currentPath==null)return;
+        StringBuilder paths=new StringBuilder();for(String p:queue){if(paths.length()>0)paths.append('\n');paths.append(p);}
+        getSharedPreferences("wfmusic_playback",MODE_PRIVATE).edit().putBoolean("active",true).putString("path",currentPath)
+            .putInt("position",player==null?0:player.getCurrentPosition()).putBoolean("playing",player!=null&&player.isPlaying())
+            .putString("queue",paths.toString()).putInt("index",queueIndex).apply();
+    }
+    private void clearSavedState(){getSharedPreferences("wfmusic_playback",MODE_PRIVATE).edit().clear().apply();}
 
     private void updateMetadata(){
         if(mediaSession==null||currentPath==null)return;

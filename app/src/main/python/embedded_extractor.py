@@ -21,6 +21,8 @@ def preview_info(url, cookies_path=None):
         return json.dumps({
             "title": info.get("title") or "Untitled",
             "uploader": info.get("uploader") or info.get("channel") or "Unknown channel",
+            "artist": info.get("artist") or info.get("uploader") or info.get("channel") or "Unknown artist",
+            "album": info.get("album") or info.get("playlist") or "YouTube downloads",
             "duration": info.get("duration") or 0,
             "thumbnail": info.get("thumbnail") or ""
         })
@@ -37,4 +39,11 @@ def download_bestaudio(url, output_dir, cookies_path=None):
     })
     with YoutubeDL(options) as ydl:
         info = ydl.extract_info(url, download=True)
-        return ydl.prepare_filename(info)
+        return json.dumps({
+            "path": ydl.prepare_filename(info),
+            "title": info.get("title") or "Untitled",
+            "artist": info.get("artist") or info.get("uploader") or info.get("channel") or "Unknown artist",
+            "album": info.get("album") or info.get("playlist") or "YouTube downloads",
+            "duration": info.get("duration") or 0,
+            "thumbnail": info.get("thumbnail") or ""
+        })

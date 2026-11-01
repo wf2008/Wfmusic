@@ -4,6 +4,7 @@ import android.app.*;
 import android.content.*;
 import android.database.Cursor;
 import android.media.MediaPlayer;
+import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.*;
 import android.content.pm.PackageManager;
@@ -18,17 +19,18 @@ public class MainActivity extends Activity {
     private EditText urlInput, serviceUrlInput;
     private Button downloadButton, playPauseButton, previousButton, nextButton, shuffleButton, repeatButton, importCookiesButton, removeCookiesButton;
     private android.widget.Switch internetToggle;
-    private TextView statusText, previewText, nowPlaying, elapsedText, durationText, libraryEmpty, downloadTab, libraryTab;
+    private TextView statusText, previewText, nowPlaying, nowPlayingArtist, elapsedText, durationText, libraryEmpty, downloadTab, libraryTab;
     private Button confirmDownloadButton;
     private ListView libraryList;
     private SeekBar progressBar;
-    private ArrayAdapter<String> adapter;
+    private ArrayAdapter<File> adapter;
     private final ArrayList<File> tracks = new ArrayList<>();
     private final EmbeddedExtractor embeddedExtractor = new EmbeddedExtractor();
     private MediaPlayer player;
     private File selectedTrack;
     private long lastDownloadId = -1;
     private boolean shuffle = false, repeat = false, userSeeking = false;
+    private int resumePositionMs = 0;
     private String pendingMediaUrl;
     private final Random random = new Random();
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -56,12 +58,18 @@ public class MainActivity extends Activity {
         internetToggle=findViewById(R.id.internetToggle); internetToggle.setChecked(getPreferences(MODE_PRIVATE).getBoolean("internet_enabled",true));
         shuffleButton=findViewById(R.id.shuffleButton); repeatButton=findViewById(R.id.repeatButton); statusText=findViewById(R.id.statusText);
         previewText=findViewById(R.id.previewText); confirmDownloadButton=findViewById(R.id.confirmDownloadButton);
-        nowPlaying=findViewById(R.id.nowPlaying); elapsedText=findViewById(R.id.elapsedText); durationText=findViewById(R.id.durationText);
+        nowPlaying=findViewById(R.id.nowPlaying); nowPlayingArtist=findViewById(R.id.nowPlayingArtist); elapsedText=findViewById(R.id.elapsedText); durationText=findViewById(R.id.durationText);
         libraryEmpty=findViewById(R.id.libraryEmpty); progressBar=findViewById(R.id.progressBar); libraryList=findViewById(R.id.libraryList);
         downloadTab=findViewById(R.id.downloadTab); libraryTab=findViewById(R.id.libraryTab);
         serviceUrlInput.setText(getPreferences(MODE_PRIVATE).getString("service_url", "http://10.0.2.2:8000"));
-        adapter = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, new ArrayList<String>()) {
-            @Override public View getView(int position, View convertView, android.view.ViewGroup parent) { TextView v=(TextView)super.getView(position,convertView,parent); v.setTextColor(0xFFF4F5F7); v.setTextSize(15); v.setPadding(8,18,8,18); return v; }
+        adapter = new ArrayAdapter<File>(this, R.layout.row_track, new ArrayList<File>()) {
+            @Override public View getView(int position, View convertView, android.view.ViewGroup parent) {
+                View row=super.getView(position,convertView,parent); File file=getItem(position); String[] meta=readMetadata(file);
+                ((TextView)row.findViewById(R.id.trackTitle)).setText(meta[0]);
+                ((TextView)row.findViewById(R.id.trackArtist)).setText(meta[1]);
+                ((TextView)row.findViewById(R.id.trackDuration)).setText(meta[2]);
+                return row;
+            }
         }; libraryList.setAdapter(adapter);
     }
 
@@ -83,6 +91,20 @@ public class MainActivity extends Activity {
         });
     }
 
+    @Override protected void onStart(){
+        super.onStart();
+        android.content.SharedPreferences state=getSharedPreferences("wfmusic_playback",MODE_PRIVATE);
+        if(!state.getBoolean("active",false))return;
+        String path=state.getString("path",null); if(path==null)return;
+        File handoffFile=new File(path); if(!handoffFile.isFile())return;
+        refreshLibrary(); selectedTrack=handoffFile; String[] meta=readMetadata(handoffFile);
+        nowPlaying.setText(meta[0]); nowPlayingArtist.setText(meta[1]); resumePositionMs=Math.max(0,state.getInt("position",0));
+        boolean wasPlaying=state.getBoolean("playing",false);
+        stopService(new Intent(this,PlaybackService.class));
+        state.edit().putBoolean("active",false).apply();
+        if(wasPlaying) startLocalPlayback();
+    }
+
     private File musicDir() { File d=new File(getExternalFilesDir(Environment.DIRECTORY_MUSIC),"OfflineMusic"); if(!d.exists()) d.mkdirs(); return d; }
 
     private void beginDownload() {
@@ -99,7 +121,7 @@ public class MainActivity extends Activity {
         if(cookiesFile()==null){ pendingMediaUrl=mediaUrl; statusText.setText("Open YouTube to sign in or complete verification, then return to preview."); openYouTubeSession(mediaUrl); return; }
         previewText.setText("Loading video details…"); confirmDownloadButton.setVisibility(View.GONE); downloadButton.setEnabled(false);
         embeddedExtractor.preview(this, mediaUrl, cookiesFile(), new EmbeddedExtractor.PreviewCallback() {
-            @Override public void success(String json){ runOnUiThread(() -> { try { org.json.JSONObject o=new org.json.JSONObject(json); String title=o.optString("title","Untitled"); String uploader=o.optString("uploader","Unknown channel"); int seconds=o.optInt("duration",0); previewText.setText(title+"\n"+uploader+"  •  "+formatMs(seconds*1000)); statusText.setText("Preview loaded. Confirm when you are ready to download."); confirmDownloadButton.setVisibility(View.VISIBLE); } catch(Exception e){ failureOnUi("Could not read preview details"); } downloadButton.setEnabled(true); }); }
+            @Override public void success(String json){ runOnUiThread(() -> { try { org.json.JSONObject o=new org.json.JSONObject(json); String title=o.optString("title","Untitled"); String artist=o.optString("artist",o.optString("uploader","Unknown artist")); int seconds=o.optInt("duration",0); previewText.setText(title+"\n"+artist+"  •  "+formatMs(seconds*1000)); statusText.setText("Preview loaded. Confirm when you are ready to download."); confirmDownloadButton.setVisibility(View.VISIBLE); } catch(Exception e){ failureOnUi("Could not read preview details"); } downloadButton.setEnabled(true); }); }
             @Override public void failure(String message){ failureOnUi("Preview failed: "+message); }
             private void failureOnUi(String message){ runOnUiThread(() -> { downloadButton.setEnabled(true); previewText.setText(message); statusText.setText("No download started."); }); }
         });
@@ -156,9 +178,12 @@ public class MainActivity extends Activity {
 
     private final BroadcastReceiver downloadReceiver=new BroadcastReceiver(){@Override public void onReceive(Context context,Intent intent){long id=intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID,-1);if(id!=lastDownloadId)return;DownloadManager.Query q=new DownloadManager.Query().setFilterById(id);Cursor c=((DownloadManager)getSystemService(DOWNLOAD_SERVICE)).query(q);boolean ok=c!=null&&c.moveToFirst()&&c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))==DownloadManager.STATUS_SUCCESSFUL;if(c!=null)c.close();downloadButton.setEnabled(true);statusText.setText(ok?"Saved to your downloaded music.":"Download failed. Check the service and URL.");refreshLibrary();showLibraryTab();}};
 
-    private void refreshLibrary(){tracks.clear();File[] fs=musicDir().listFiles();if(fs!=null){Arrays.sort(fs,Comparator.comparing(File::getName,String.CASE_INSENSITIVE_ORDER));for(File f:fs)if(f.isFile()){String n=f.getName().toLowerCase(Locale.US);if(n.endsWith(".webm")||n.endsWith(".part")||n.endsWith(".ytdl")){f.delete();continue;}if(n.endsWith(".mp3")||n.endsWith(".m4a")||n.endsWith(".ogg")||n.endsWith(".wav")||n.endsWith(".aac")||n.endsWith(".flac")||n.endsWith(".opus"))tracks.add(f);}}ArrayList<String> names=new ArrayList<>();for(File f:tracks)names.add(f.getName());adapter.clear();adapter.addAll(names);adapter.notifyDataSetChanged();libraryEmpty.setVisibility(tracks.isEmpty()?View.VISIBLE:View.GONE);}
-    private void selectTrack(File f){selectedTrack=f;nowPlaying.setText(f.getName());playPauseButton.setText("PLAY");if(player!=null){player.release();player=null;}progressBar.setProgress(0);elapsedText.setText("0:00");durationText.setText("0:00");}
-    private void togglePlayback(){if(selectedTrack==null){if(tracks.isEmpty()){statusText.setText("Download a track first.");return;}selectTrack(tracks.get(0));}try{if(player!=null&&player.isPlaying()){player.pause();playPauseButton.setText("RESUME");return;}if(player==null){player=new MediaPlayer();player.setDataSource(selectedTrack.getAbsolutePath());player.setOnPreparedListener(mp->{progressBar.setMax(mp.getDuration());durationText.setText(formatMs(mp.getDuration()));mp.start();playPauseButton.setText("PAUSE");updateProgress();});player.setOnCompletionListener(mp->{if(repeat){mp.seekTo(0);mp.start();}else playRelative(1);});player.prepareAsync();}else{player.start();playPauseButton.setText("PAUSE");}}catch(Exception e){statusText.setText("This file could not be played: "+e.getMessage());}}
+    private void refreshLibrary(){tracks.clear();File[] fs=musicDir().listFiles();if(fs!=null){Arrays.sort(fs,Comparator.comparing(File::getName,String.CASE_INSENSITIVE_ORDER));for(File f:fs)if(f.isFile()){String n=f.getName().toLowerCase(Locale.US);if(n.endsWith(".webm")||n.endsWith(".part")||n.endsWith(".ytdl")){f.delete();continue;}if(n.endsWith(".mp3")||n.endsWith(".m4a")||n.endsWith(".ogg")||n.endsWith(".wav")||n.endsWith(".aac")||n.endsWith(".flac")||n.endsWith(".opus"))tracks.add(f);}}adapter.clear();adapter.addAll(tracks);adapter.notifyDataSetChanged();libraryEmpty.setVisibility(tracks.isEmpty()?View.VISIBLE:View.GONE);}
+    private void selectTrack(File f){selectedTrack=f;String[] meta=readMetadata(f);nowPlaying.setText(meta[0]);nowPlayingArtist.setText(meta[1]);resumePositionMs=0;playPauseButton.setText("PLAY");if(player!=null){player.release();player=null;}progressBar.setProgress(0);elapsedText.setText("0:00");durationText.setText(meta[2].equals("0:00")?"0:00":meta[2]);}
+    private String[] readMetadata(File f){String title=fallbackTitle(f),artist="Unknown artist",duration="0:00";if(f!=null&&f.isFile())try{MediaMetadataRetriever r=new MediaMetadataRetriever();r.setDataSource(f.getAbsolutePath());String t=r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE);String a=r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST);String d=r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);if(t!=null&&!t.trim().isEmpty())title=t;if(a!=null&&!a.trim().isEmpty())artist=a;if(d!=null)duration=formatMs(Integer.parseInt(d));r.release();}catch(Exception ignored){}return new String[]{title,artist,duration};}
+    private String fallbackTitle(File f){if(f==null)return "Untitled";String n=f.getName();int dot=n.lastIndexOf('.');if(dot>0)n=n.substring(0,dot);return n.replace('_',' ');}
+    private void togglePlayback(){if(selectedTrack==null){if(tracks.isEmpty()){statusText.setText("Download a track first.");return;}selectTrack(tracks.get(0));}try{if(player!=null&&player.isPlaying()){player.pause();playPauseButton.setText("RESUME");return;}if(player==null)startLocalPlayback();else{player.start();playPauseButton.setText("PAUSE");}}catch(Exception e){statusText.setText("This file could not be played: "+e.getMessage());}}
+    private void startLocalPlayback(){if(selectedTrack==null)return;try{player=new MediaPlayer();player.setDataSource(selectedTrack.getAbsolutePath());player.setOnPreparedListener(mp->{if(resumePositionMs>0)mp.seekTo(Math.min(resumePositionMs,Math.max(0,mp.getDuration()-500)));resumePositionMs=0;progressBar.setMax(mp.getDuration());durationText.setText(formatMs(mp.getDuration()));mp.start();playPauseButton.setText("PAUSE");updateProgress();});player.setOnCompletionListener(mp->{if(repeat){mp.seekTo(0);mp.start();}else playRelative(1);});player.prepareAsync();}catch(Exception e){if(player!=null){player.release();player=null;}statusText.setText("This file could not be played: "+e.getMessage());}}
     private void playRelative(int delta){if(tracks.isEmpty())return;int index=selectedTrack==null?0:tracks.indexOf(selectedTrack);if(shuffle)index=random.nextInt(tracks.size());else index=(index+delta+tracks.size())%tracks.size();selectTrack(tracks.get(index));togglePlayback();}
     private void updateProgress(){handler.postDelayed(()->{if(player!=null&&player.isPlaying()&&!userSeeking){progressBar.setProgress(player.getCurrentPosition());elapsedText.setText(formatMs(player.getCurrentPosition()));}if(player!=null)updateProgress();},500);}
     private String formatMs(int ms){int s=Math.max(0,ms/1000);return String.format(Locale.US,"%d:%02d",s/60,s%60);}
@@ -169,10 +194,14 @@ public class MainActivity extends Activity {
         if(player!=null && player.isPlaying() && selectedTrack!=null){
             String[] queuePaths=new String[tracks.size()];
             for(int i=0;i<tracks.size();i++) queuePaths[i]=tracks.get(i).getAbsolutePath();
+            int handoffPosition=player.getCurrentPosition();
+            getSharedPreferences("wfmusic_playback",MODE_PRIVATE).edit().putBoolean("active",true).putString("path",selectedTrack.getAbsolutePath()).putInt("position",handoffPosition).putBoolean("playing",true).apply();
             Intent intent=new Intent(this,PlaybackService.class).setAction(PlaybackService.ACTION_PLAY)
                 .putExtra(PlaybackService.EXTRA_PATH,selectedTrack.getAbsolutePath())
                 .putExtra(PlaybackService.EXTRA_QUEUE,queuePaths)
-                .putExtra(PlaybackService.EXTRA_INDEX,Math.max(0,tracks.indexOf(selectedTrack)));
+                .putExtra(PlaybackService.EXTRA_INDEX,Math.max(0,tracks.indexOf(selectedTrack)))
+                .putExtra(PlaybackService.EXTRA_POSITION,handoffPosition)
+                .putExtra(PlaybackService.EXTRA_SHOULD_PLAY,true);
             try { if(Build.VERSION.SDK_INT>=26) startForegroundService(intent); else startService(intent); } catch(RuntimeException e) { statusText.setText("Background playback could not start: "+e.getMessage()); }
             player.release(); player=null;
         }

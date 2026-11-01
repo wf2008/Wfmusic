@@ -9,6 +9,7 @@ import com.arthenica.ffmpegkit.ReturnCode;
 import java.io.File;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.json.JSONObject;
 
 public final class EmbeddedExtractor {
     public interface PreviewCallback { void success(String json); void failure(String message); }
@@ -36,6 +37,7 @@ public final class EmbeddedExtractor {
         executor.execute(() -> {
             File source=null;
             try {
+                if(!outputDir.exists() && !outputDir.mkdirs()) throw new IllegalStateException("Cannot create music folder");
                 File tempDir=new File(context.getCacheDir(),"wfmusic-source");
                 if(!tempDir.exists() && !tempDir.mkdirs()) throw new IllegalStateException("Cannot create temporary download folder");
                 File[] stale=tempDir.listFiles(); if(stale!=null) for(File f:stale) if(f.isFile()) f.delete();
@@ -43,11 +45,20 @@ public final class EmbeddedExtractor {
                 PyObject result=cookiesFile!=null&&cookiesFile.isFile()
                         ?m.callAttr("download_bestaudio",url,tempDir.getAbsolutePath(),cookiesFile.getAbsolutePath())
                         :m.callAttr("download_bestaudio",url,tempDir.getAbsolutePath());
-                source=new File(result.toString());
+                JSONObject metadata=new JSONObject(result.toString());
+                source=new File(metadata.optString("path"));
                 if(!source.isFile()) throw new IllegalStateException("The audio source was not created");
-                String base=source.getName(); int dot=base.lastIndexOf('.'); if(dot>0)base=base.substring(0,dot);
-                File target=new File(outputDir,base+".mp3");
-                String command="-y -i "+quote(source.getAbsolutePath())+" -vn -codec:a libmp3lame -b:a 192k "+quote(target.getAbsolutePath());
+                String title=metadata.optString("title","Untitled");
+                String artist=metadata.optString("artist","Unknown artist");
+                String album=metadata.optString("album","YouTube downloads");
+                File target=new File(outputDir,safeFileName(title)+".mp3");
+                String command="-y -i "+quote(source.getAbsolutePath())+
+                        " -vn -codec:a libmp3lame -b:a 192k"+
+                        " -metadata title="+quote(title)+
+                        " -metadata artist="+quote(artist)+
+                        " -metadata album="+quote(album)+
+                        " -metadata comment="+quote("Downloaded with Wfmusic")+
+                        " "+quote(target.getAbsolutePath());
                 File sourceForCallback=source;
                 FFmpegKit.executeAsync(command,session->{
                     if(ReturnCode.isSuccess(session.getReturnCode()) && target.isFile() && target.length()>0){
@@ -60,7 +71,13 @@ public final class EmbeddedExtractor {
         });
     }
 
-    private static String quote(String path){return "'"+path.replace("'","'\\''")+"'";}
+    private static String safeFileName(String value){
+        String name=value==null?"Untitled":value.trim();
+        if(name.isEmpty())name="Untitled";
+        name=name.replaceAll("[^a-zA-Z0-9 ._'()-]","_").replaceAll("\\s+"," ").trim();
+        return name.length()>100?name.substring(0,100).trim():name;
+    }
+    private static String quote(String value){return "'"+value.replace("'","'\\''")+"'";}
     private static String message(Exception e,String fallback){return e.getMessage()==null?fallback:e.getMessage();}
     public void shutdown(){executor.shutdownNow();}
 }
