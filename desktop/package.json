@@ -1,0 +1,24 @@
+{
+  "name": "wfmusic-desktop",
+  "version": "1.0.0",
+  "description": "Wfmusic offline music downloader and player",
+  "main": "src/main.js",
+  "author": "Wfmusic",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --check src/main.js && node --check src/preload.js && node --check src/renderer.js",
+    "dist:win": "electron-builder --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.wfmusic.desktop",
+    "productName": "Wfmusic",
+    "files": ["src/**/*", "bin/**/*"],
+    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }], "artifactName": "Wfmusic-Setup-${version}.exe" },
+    "nsis": { "oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true, "createStartMenuShortcut": true }
+  }
+}

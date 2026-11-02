@@ -1,0 +1,41 @@
+name: Wfmusic Windows Desktop
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/electron.yml'
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Install dependencies
+        run: npm install
+      - name: Download yt-dlp and FFmpeg
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path bin | Out-Null
+          Invoke-WebRequest -Uri 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe' -OutFile 'bin/yt-dlp.exe'
+          Invoke-WebRequest -Uri 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip' -OutFile 'ffmpeg.zip'
+          Expand-Archive -Path 'ffmpeg.zip' -DestinationPath 'ffmpeg-unpacked' -Force
+          $ffmpeg = Get-ChildItem -Path 'ffmpeg-unpacked' -Recurse -Filter 'ffmpeg.exe' | Select-Object -First 1
+          Copy-Item $ffmpeg.FullName 'bin/ffmpeg.exe'
+      - name: Validate JavaScript
+        run: npm test
+      - name: Build Windows installer
+        run: npm run dist:win
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wfmusic-Windows-Installer
+          path: desktop/dist/*.exe
+          if-no-files-found: error
