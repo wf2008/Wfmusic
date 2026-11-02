@@ -29,7 +29,7 @@ public final class EmbeddedExtractor {
                         ?m.callAttr("preview_info",url,cookiesFile.getAbsolutePath())
                         :m.callAttr("preview_info",url);
                 callback.success(result.toString());
-            } catch(Exception e) { callback.failure(message(e,"Preview failed")); }
+            } catch(Throwable e) { callback.failure(message(e,"Preview failed")); }
         });
     }
 
@@ -60,14 +60,22 @@ public final class EmbeddedExtractor {
                         " -metadata comment="+quote("Downloaded with Wfmusic")+
                         " "+quote(target.getAbsolutePath());
                 File sourceForCallback=source;
-                FFmpegKit.executeAsync(command,session->{
-                    if(ReturnCode.isSuccess(session.getReturnCode()) && target.isFile() && target.length()>0){
-                        sourceForCallback.delete(); callback.success(target);
-                    } else {
-                        sourceForCallback.delete(); target.delete(); callback.failure("FFmpeg could not convert the downloaded audio");
-                    }
-                });
-            } catch(Exception e) { if(source!=null)source.delete(); callback.failure(message(e,"Embedded extractor failed")); }
+                try {
+                    FFmpegKit.executeAsync(command,session->{
+                        try {
+                            if(ReturnCode.isSuccess(session.getReturnCode()) && target.isFile() && target.length()>0){
+                                sourceForCallback.delete(); callback.success(target);
+                            } else {
+                                sourceForCallback.delete(); target.delete(); callback.failure("FFmpeg could not convert the downloaded audio");
+                            }
+                        } catch(Throwable callbackError) {
+                            sourceForCallback.delete(); target.delete(); callback.failure(message(callbackError,"Conversion finished with an error"));
+                        }
+                    });
+                } catch(Throwable ffmpegError) {
+                    source.delete(); target.delete(); callback.failure(message(ffmpegError,"FFmpeg could not start"));
+                }
+            } catch(Throwable e) { if(source!=null)source.delete(); callback.failure(message(e,"Embedded extractor failed")); }
         });
     }
 
@@ -78,6 +86,6 @@ public final class EmbeddedExtractor {
         return name.length()>100?name.substring(0,100).trim():name;
     }
     private static String quote(String value){return "'"+value.replace("'","'\\''")+"'";}
-    private static String message(Exception e,String fallback){return e.getMessage()==null?fallback:e.getMessage();}
+    private static String message(Throwable e,String fallback){return e.getMessage()==null?fallback:e.getMessage();}
     public void shutdown(){executor.shutdownNow();}
 }
