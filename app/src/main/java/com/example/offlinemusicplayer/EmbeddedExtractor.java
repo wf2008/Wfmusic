@@ -5,7 +5,6 @@ import com.chaquo.python.PyObject;
 import com.chaquo.python.Python;
 import com.chaquo.python.android.AndroidPlatform;
 import java.io.File;
-import java.lang.reflect.Method;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.json.JSONObject;
@@ -48,31 +47,14 @@ public final class EmbeddedExtractor {
                 source=new File(metadata.optString("path"));
                 if(!source.isFile()) throw new IllegalStateException("The audio source was not created");
                 String title=metadata.optString("title","Untitled");
-                String artist=metadata.optString("artist","Unknown artist");
-                String album=metadata.optString("album","YouTube downloads");
-                File target=new File(outputDir,safeFileName(title)+".mp3");
-                String command="-y -i "+quote(source.getAbsolutePath())+
-                        " -vn -codec:a libmp3lame -b:a 192k"+
-                        " -metadata title="+quote(title)+
-                        " -metadata artist="+quote(artist)+
-                        " -metadata album="+quote(album)+
-                        " -metadata comment="+quote("Downloaded with Wfmusic")+
-                        " "+quote(target.getAbsolutePath());
-                File sourceForCallback=source;
-                try {
-                    Class<?> kit=Class.forName("com.arthenica.ffmpegkit.FFmpegKit");
-                    Method execute=kit.getMethod("execute",String.class);
-                    Object session=execute.invoke(null,command);
-                    Method getReturnCode=session.getClass().getMethod("getReturnCode");
-                    Object returnCode=getReturnCode.invoke(session);
-                    Class<?> returnCodeClass=Class.forName("com.arthenica.ffmpegkit.ReturnCode");
-                    Method isSuccess=returnCodeClass.getMethod("isSuccess",returnCodeClass);
-                    boolean ok=Boolean.TRUE.equals(isSuccess.invoke(null,returnCode));
-                    if(ok && target.isFile() && target.length()>0){sourceForCallback.delete();callback.success(target);}
-                    else {sourceForCallback.delete();target.delete();callback.failure("FFmpeg could not convert the downloaded audio");}
-                } catch(Throwable ffmpegError) {
-                    source.delete(); target.delete(); callback.failure(message(ffmpegError,"FFmpeg could not start"));
-                }
+                String extension=extensionOf(source.getName());
+                if(extension.isEmpty()) extension="m4a";
+                File target=new File(outputDir,safeFileName(title)+"."+extension);
+                if(target.exists()) target.delete();
+                if(!source.renameTo(target)) copyFile(source,target);
+                source.delete();
+                if(target.isFile() && target.length()>0) callback.success(target);
+                else callback.failure("The audio file could not be saved");
             } catch(Throwable e) { if(source!=null)source.delete(); callback.failure(message(e,"Embedded extractor failed")); }
         });
     }
@@ -83,7 +65,8 @@ public final class EmbeddedExtractor {
         name=name.replaceAll("[^a-zA-Z0-9 ._'()-]","_").replaceAll("\\s+"," ").trim();
         return name.length()>100?name.substring(0,100).trim():name;
     }
-    private static String quote(String value){return "'"+value.replace("'","'\\''")+"'";}
+    private static String extensionOf(String name){int dot=name.lastIndexOf('.');return dot>0&&dot<name.length()-1?name.substring(dot+1).toLowerCase(java.util.Locale.US):"";}
+    private static void copyFile(File source,File target)throws java.io.IOException{try(java.io.InputStream in=new java.io.FileInputStream(source);java.io.OutputStream out=new java.io.FileOutputStream(target)){byte[] buffer=new byte[8192];int n;while((n=in.read(buffer))!=-1)out.write(buffer,0,n);}}
     private static String message(Throwable e,String fallback){Throwable x=e;while(x.getCause()!=null&&x.getMessage()==null)x=x.getCause();return x.getMessage()==null?fallback:x.getMessage();}
     public void shutdown(){executor.shutdownNow();}
 }
