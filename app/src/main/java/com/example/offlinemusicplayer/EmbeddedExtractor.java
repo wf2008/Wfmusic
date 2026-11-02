@@ -4,9 +4,8 @@ import android.content.Context;
 import com.chaquo.python.PyObject;
 import com.chaquo.python.Python;
 import com.chaquo.python.android.AndroidPlatform;
-import com.arthenica.ffmpegkit.FFmpegKit;
-import com.arthenica.ffmpegkit.ReturnCode;
 import java.io.File;
+import java.lang.reflect.Method;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.json.JSONObject;
@@ -61,17 +60,16 @@ public final class EmbeddedExtractor {
                         " "+quote(target.getAbsolutePath());
                 File sourceForCallback=source;
                 try {
-                    FFmpegKit.executeAsync(command,session->{
-                        try {
-                            if(ReturnCode.isSuccess(session.getReturnCode()) && target.isFile() && target.length()>0){
-                                sourceForCallback.delete(); callback.success(target);
-                            } else {
-                                sourceForCallback.delete(); target.delete(); callback.failure("FFmpeg could not convert the downloaded audio");
-                            }
-                        } catch(Throwable callbackError) {
-                            sourceForCallback.delete(); target.delete(); callback.failure(message(callbackError,"Conversion finished with an error"));
-                        }
-                    });
+                    Class<?> kit=Class.forName("com.arthenica.ffmpegkit.FFmpegKit");
+                    Method execute=kit.getMethod("execute",String.class);
+                    Object session=execute.invoke(null,command);
+                    Method getReturnCode=session.getClass().getMethod("getReturnCode");
+                    Object returnCode=getReturnCode.invoke(session);
+                    Class<?> returnCodeClass=Class.forName("com.arthenica.ffmpegkit.ReturnCode");
+                    Method isSuccess=returnCodeClass.getMethod("isSuccess",returnCodeClass);
+                    boolean ok=Boolean.TRUE.equals(isSuccess.invoke(null,returnCode));
+                    if(ok && target.isFile() && target.length()>0){sourceForCallback.delete();callback.success(target);}
+                    else {sourceForCallback.delete();target.delete();callback.failure("FFmpeg could not convert the downloaded audio");}
                 } catch(Throwable ffmpegError) {
                     source.delete(); target.delete(); callback.failure(message(ffmpegError,"FFmpeg could not start"));
                 }
@@ -86,6 +84,6 @@ public final class EmbeddedExtractor {
         return name.length()>100?name.substring(0,100).trim():name;
     }
     private static String quote(String value){return "'"+value.replace("'","'\\''")+"'";}
-    private static String message(Throwable e,String fallback){return e.getMessage()==null?fallback:e.getMessage();}
+    private static String message(Throwable e,String fallback){Throwable x=e;while(x.getCause()!=null&&x.getMessage()==null)x=x.getCause();return x.getMessage()==null?fallback:x.getMessage();}
     public void shutdown(){executor.shutdownNow();}
 }
