@@ -53,7 +53,11 @@ public final class EmbeddedExtractor {
                 if(target.exists()) target.delete();
                 if(!source.renameTo(target)) copyFile(source,target);
                 source.delete();
-                if(target.isFile() && target.length()>0) callback.success(target);
+                if(target.isFile() && target.length()>0){
+                    JSONObject tags=new JSONObject(); tags.put("title",title); tags.put("artist",metadata.optString("artist","Unknown artist")); tags.put("album",metadata.optString("album","YouTube downloads")); tags.put("duration",metadata.optInt("duration",0));
+                    try(java.io.FileWriter writer=new java.io.FileWriter(new File(outputDir,target.getName()+".json"))){writer.write(tags.toString());}
+                    callback.success(target);
+                }
                 else callback.failure("The audio file could not be saved");
             } catch(Throwable e) { if(source!=null)source.delete(); callback.failure(message(e,"Embedded extractor failed")); }
         });
